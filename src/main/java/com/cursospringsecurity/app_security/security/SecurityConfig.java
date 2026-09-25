@@ -4,11 +4,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration // Para que Spring cargue esta configuración al arrancar
@@ -25,29 +23,6 @@ public class SecurityConfig {
                 .httpBasic(Customizer.withDefaults()); // Para herraminetas como Postman/curl, usando HTTP Basic
         return http.build(); // Construye la cadena de seguridad con toda la configuración
     }
-
-
-
-// Resumen: Esta clase es básicamente el lugar donde empiezas a decirle a Spring Security
-// qué quieres proteger y cómo quieres autenticar a los usuarios.
-// A partir de aquí, lo interesante es que authorizeHttpRequests() puede hacerse mucho más específico:
-// permitAll(), hasRole(), hasAuthority(), requestMatchers(), etc.
-
-    // Hardcodeando usuarios:
-//    @Bean
-//    InMemoryUserDetailsManager inMemoryUserDetailsManager(){
-//        var admin = User.withUsername("admin")
-//                .password("to_be_encoded")
-//                .authorities("ADMIN")
-//                .build();
-//
-//        var user = User.withUsername("user")
-//                .password("to_be_encoded")
-//                .authorities("USER")
-//                .build();
-//
-//        return new InMemoryUserDetailsManager(admin, user);
-//    }
 
     @Bean
     PasswordEncoder passwordEncoder(){
