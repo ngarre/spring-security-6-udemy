@@ -3,6 +3,7 @@ package com.cursospringsecurity.app_security.security;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,6 +13,7 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration // Para que Spring cargue esta configuración al arrancar
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean // Registra esta configuración de seguridad como objeto de Spring
@@ -19,7 +21,11 @@ public class SecurityConfig {
     // Security utiliza para controlar las peticiones HTTP
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(
-                auth -> auth.requestMatchers("/loans", "/balance", "/accounts", "/cards").authenticated()
+                auth -> auth
+                        .requestMatchers("/loans").hasAuthority("VIEW_LOANS")
+                        .requestMatchers("/balance").hasAuthority("VIEW_BALANCE")
+                        .requestMatchers("/cards").hasAuthority("VIEW_CARDS")
+                        // .requestMatchers("/account").hasAnyAuthority("VIEW_ACCOUNT", "VIEW_CARDS")
                         .anyRequest().permitAll())
                 .formLogin(Customizer.withDefaults()) // Permite autenticarse mediante un formulario de login
                 .httpBasic(Customizer.withDefaults()); // Para herraminetas como Postman/curl, usando HTTP Basic

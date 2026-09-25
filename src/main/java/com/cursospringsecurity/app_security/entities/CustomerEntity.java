@@ -1,11 +1,11 @@
 package com.cursospringsecurity.app_security.entities;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.Fetch;
 
 import java.math.BigInteger;
+import java.util.List;
 
 @Entity
 @Table(name="customers")
@@ -15,5 +15,8 @@ public class CustomerEntity {
     private BigInteger id;
     private String email;
     private String password;
-    private String role;
+
+    @OneToMany(fetch = FetchType.EAGER)
+    @JoinColumn
+    private List<RoleEntity> roles;
 }
