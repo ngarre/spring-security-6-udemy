@@ -15,4 +15,5 @@ public class CustomerEntity {
     private BigInteger id;
     private String email;
     private String password;
+    private String role;
 }

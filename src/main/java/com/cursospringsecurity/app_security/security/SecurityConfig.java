@@ -34,27 +34,24 @@ public class SecurityConfig {
 // permitAll(), hasRole(), hasAuthority(), requestMatchers(), etc.
 
     // Hardcodeando usuarios:
-    @Bean
-    InMemoryUserDetailsManager inMemoryUserDetailsManager(){
-        var admin = User.withUsername("admin")
-                .password("to_be_encoded")
-                .authorities("ADMIN")
-                .build();
-
-        var user = User.withUsername("user")
-                .password("to_be_encoded")
-                .authorities("USER")
-                .build();
-
-        return new InMemoryUserDetailsManager(admin, user);
-    }
+//    @Bean
+//    InMemoryUserDetailsManager inMemoryUserDetailsManager(){
+//        var admin = User.withUsername("admin")
+//                .password("to_be_encoded")
+//                .authorities("ADMIN")
+//                .build();
+//
+//        var user = User.withUsername("user")
+//                .password("to_be_encoded")
+//                .authorities("USER")
+//                .build();
+//
+//        return new InMemoryUserDetailsManager(admin, user);
+//    }
 
     @Bean
     PasswordEncoder passwordEncoder(){
         return NoOpPasswordEncoder.getInstance();
     }
-
-    // Yo no incluyo el UserDetailsService que ddevuelve un objeto JdbcUserDetailsManager porque no he creado el contenedor
-    // con la BBDD como en el tutorial.
 
 }
