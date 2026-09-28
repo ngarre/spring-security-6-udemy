@@ -1,76 +1,169 @@
 package com.cursospringsecurity.app_security.security;
 
+import com.cursospringsecurity.app_security.services.CustomerUserDetails;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
-@Configuration // Para que Spring cargue esta configuración al arrancar
-@EnableMethodSecurity
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Configuration
 public class SecurityConfig {
 
-    @Bean // Registra esta configuración de seguridad como objeto de Spring
-    //SecurityFilterChaines la cadena de filtros que Spring
-    // Security utiliza para controlar las peticiones HTTP
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JWTValidationFilter jwtValidationFilter) throws Exception {
-        // La siguiente línea le dice a Spring que no guarde sesión entre peticiones,
-        // cada nueva petición debe traer su JWT
-        http.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-        http.authorizeHttpRequests(
-                auth -> auth
-                        .requestMatchers("/loans").hasAuthority("VIEW_LOANS")
-                        .requestMatchers("/balance").hasAuthority("VIEW_BALANCE")
-                        .requestMatchers("/cards").hasAuthority("VIEW_CARDS")
-                        // .requestMatchers("/account").hasAnyAuthority("VIEW_ACCOUNT", "VIEW_CARDS")
-                        .anyRequest().permitAll())
-                .formLogin(Customizer.withDefaults()) // Permite autenticarse mediante un formulario de login
-                .httpBasic(Customizer.withDefaults()); // Para herraminetas como Postman/curl, usando HTTP Basic
-        http.addFilterAfter(jwtValidationFilter, BasicAuthenticationFilter.class);
-        return http.build(); // Construye la cadena de seguridad con toda la configuración
-    }
-
-
-
-// Resumen: Esta clase es básicamente el lugar donde empiezas a decirle a Spring Security
-// qué quieres proteger y cómo quieres autenticar a los usuarios.
-// A partir de aquí, lo interesante es que authorizeHttpRequests() puede hacerse mucho más específico:
-// permitAll(), hasRole(), hasAuthority(), requestMatchers(), etc.
-
-    // Hardcodeando usuarios:
-//    @Bean
-//    InMemoryUserDetailsManager inMemoryUserDetailsManager(){
-//        var admin = User.withUsername("admin")
-//                .password("to_be_encoded")
-//                .authorities("ADMIN")
-//                .build();
-//
-//        var user = User.withUsername("user")
-//                .password("to_be_encoded")
-//                .authorities("USER")
-//                .build();
-//
-//        return new InMemoryUserDetailsManager(admin, user);
-//    }
 
     @Bean
-    PasswordEncoder passwordEncoder(){
-        return NoOpPasswordEncoder.getInstance();
+    @Order(1) // Indica que esta cadena de filtros tiene prioridad sobre la de Order(2)
+    // Configura el Authorization Server: es la parte que gestiona endpoints y flujos con OAuth2/OIDC
+    SecurityFilterChain oauth2SecurityFilterChain(HttpSecurity http) throws Exception {
+        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
+
+        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
+                .oidc(Customizer.withDefaults());
+
+        http.exceptionHandling(e ->
+                e.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint(LOGIN_RESOURCE)));
+        return http.build();
     }
 
     @Bean
-    AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
-        return configuration.getAuthenticationManager();
+    @Order(2)
+    // Protege mis endpoints de negocio y configura la app como Resource Server que acepta JWT.
+    SecurityFilterChain clientSecurityFilterChain(HttpSecurity http) throws Exception {
+        http.formLogin(Customizer.withDefaults());
+        http.authorizeHttpRequests(auth -> auth
+                //.requestMatchers(ADMIN_RESOURCES).hasAuthority(AUTH_WRITE)
+                //.requestMatchers(USER_RESOURCES).hasAuthority(AUTH_READ)
+                .requestMatchers(ADMIN_RESOURCES).hasRole(ROLE_ADMIN)
+                .requestMatchers(USER_RESOURCES).hasRole(ROLE_USER)
+                .anyRequest().permitAll());
+        http.oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults())); // Mis endpoints protegidos aceptan JWT como access token
+
+        return http.build();
     }
 
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    // Dice cómo autenticar usuarios contra BBDD usando tu CustomerUserDetails + PasswordEncoder.
+    @Bean
+    AuthenticationProvider authenticationProvider(PasswordEncoder encoder, CustomerUserDetails userDetails) {
+        var authProvider = new DaoAuthenticationProvider();
+        authProvider.setPasswordEncoder(encoder);
+        authProvider.setUserDetailsService(userDetails);
+        return authProvider;
+    }
+
+    @Bean
+    AuthorizationServerSettings authorizationServerSettings() {
+        return AuthorizationServerSettings.builder().build();
+    }
+
+    // Le dice a Spring de qué claim sacar los roles/authorities del JWT.
+    @Bean
+    JwtAuthenticationConverter jwtAuthenticationConverter() {
+        var authConverter = new JwtGrantedAuthoritiesConverter();
+        authConverter.setAuthoritiesClaimName("roles");
+        authConverter.setAuthorityPrefix("");
+        var converterResponse = new JwtAuthenticationConverter();
+        converterResponse.setJwtGrantedAuthoritiesConverter(authConverter);
+        return converterResponse;
+    }
+
+    // jwkSource() + jwtDecoder(...): generan las claves RSA y permiten firmar/verificar JWT.
+    @Bean
+    JWKSource<SecurityContext> jwkSource() {
+        var rsa = generateKeys();
+        var jwkSet = new JWKSet(rsa);
+        return (jwkSelector, securityContext) -> jwkSelector.select(jwkSet);
+    }
+
+    @Bean
+    JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+    }
+
+
+
+    // Añade claims propios al access token, por ejemplo roles, owner y date_request
+    @Bean
+    OAuth2TokenCustomizer<JwtEncodingContext> oAuth2TokenCustomizer() {
+        return context -> {
+            var authentication = context.getPrincipal();
+            var authorities =  authentication.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toSet());
+            if (context.getTokenType().equals(OAuth2TokenType.ACCESS_TOKEN)) {
+                context.getClaims().claims(claim ->
+                        claim.putAll(Map.of(
+                                "roles", authorities,
+                                "owner", APPLICATION_OWNER,
+                                "date_request", LocalDateTime.now().toString())));
+            }
+        };
+    }
+
+    private static KeyPair generateRSA() {
+        KeyPair keyPair;
+        try {
+            var keyPairGenerator = KeyPairGenerator.getInstance(RSA);
+            keyPairGenerator.initialize(RSA_SIZE);
+            keyPair = keyPairGenerator.generateKeyPair();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+        return keyPair;
+    }
+
+    private static RSAKey generateKeys() {
+        var keyPair = generateRSA();
+        var publicKey = (RSAPublicKey) keyPair.getPublic();
+        var privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        return new RSAKey.Builder(publicKey).privateKey(privateKey).keyID(UUID.randomUUID().toString()).build();
+
+    }
+
+    private static final String[] USER_RESOURCES = {"/loans/**","/balance/**"};
+    private static final String[] ADMIN_RESOURCES = {"/accounts/**","/cards/**"};
+    private static final String AUTH_WRITE = "write";
+    private static final String AUTH_READ = "read";
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_USER = "USER";
+    private static final String LOGIN_RESOURCE = "/login";
+    private static final String RSA = "RSA";
+    private static final Integer RSA_SIZE = 2048;
+    private static final String APPLICATION_OWNER = "Debuggeando ideas";
 }

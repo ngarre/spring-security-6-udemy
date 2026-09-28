@@ -8,34 +8,27 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.stream.Collectors;
 
 @Service
+@Transactional
 @AllArgsConstructor
-public class JWTUserDetailService implements UserDetailsService {
+public class CustomerUserDetails implements UserDetailsService {
 
     private final CustomerRepository customerRepository;
 
     @Override
-    public UserDetails loadUserByUsername(String username)
-            throws UsernameNotFoundException {
-
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         return this.customerRepository.findByEmail(username)
                 .map(customer -> {
-
-                    final var authorities = customer.getRoles()
+                    final var roles = customer.getRoles();
+                    final var authorities = roles
                             .stream()
-                            .map(role ->
-                                    new SimpleGrantedAuthority(role.getName()))
-                            .toList();
-
-                    return new User(
-                            customer.getEmail(),
-                            customer.getPassword(),
-                            authorities
-                    );
-
-                })
-                .orElseThrow(() ->
-                        new UsernameNotFoundException("User not exist"));
+                            .map(role -> new SimpleGrantedAuthority(role.getName()))
+                            .collect(Collectors.toList());
+                    return new User(customer.getEmail(), customer.getPassword(), authorities);
+                }).orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 }
