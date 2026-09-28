@@ -2,9 +2,12 @@ package com.cursospringsecurity.app_security.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
@@ -20,8 +23,10 @@ public class SecurityConfig {
     @Bean // Registra esta configuración de seguridad como objeto de Spring
     //SecurityFilterChaines la cadena de filtros que Spring
     // Security utiliza para controlar las peticiones HTTP
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.addFilterBefore(new ApiKeyFilter(), BasicAuthenticationFilter.class);
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JWTValidationFilter jwtValidationFilter) throws Exception {
+        // La siguiente línea le dice a Spring que no guarde sesión entre peticiones,
+        // cada nueva petición debe traer su JWT
+        http.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.authorizeHttpRequests(
                 auth -> auth
                         .requestMatchers("/loans").hasAuthority("VIEW_LOANS")
@@ -31,6 +36,7 @@ public class SecurityConfig {
                         .anyRequest().permitAll())
                 .formLogin(Customizer.withDefaults()) // Permite autenticarse mediante un formulario de login
                 .httpBasic(Customizer.withDefaults()); // Para herraminetas como Postman/curl, usando HTTP Basic
+        http.addFilterAfter(jwtValidationFilter, BasicAuthenticationFilter.class);
         return http.build(); // Construye la cadena de seguridad con toda la configuración
     }
 
@@ -60,6 +66,11 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder(){
         return NoOpPasswordEncoder.getInstance();
+    }
+
+    @Bean
+    AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
     }
 
 }
