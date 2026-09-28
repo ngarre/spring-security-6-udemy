@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 @Configuration // Para que Spring cargue esta configuración al arrancar
 @EnableMethodSecurity
@@ -20,6 +21,7 @@ public class SecurityConfig {
     //SecurityFilterChaines la cadena de filtros que Spring
     // Security utiliza para controlar las peticiones HTTP
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.addFilterBefore(new ApiKeyFilter(), BasicAuthenticationFilter.class);
         http.authorizeHttpRequests(
                 auth -> auth
                         .requestMatchers("/loans").hasAuthority("VIEW_LOANS")

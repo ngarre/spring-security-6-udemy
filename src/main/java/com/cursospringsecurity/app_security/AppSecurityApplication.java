@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 
 @SpringBootApplication
-@EnableWebSecurity // Realmente esto en esta versión de Spring ya no es necesario
+// @EnableWebSecurity(debug = true) --> Con esto al arrancar puedo ver todos los filtros implementados
 public class AppSecurityApplication {
 
 	public static void main(String[] args) {
